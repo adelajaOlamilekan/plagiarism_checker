@@ -19,6 +19,8 @@ async def create_upload_file(files: List[UploadFile] = File(...)):
         raise HTTPException(status_code=400, detail="Please upload two files")
 
     filenames = [file.filename for file in files]
+
+    return {"filenames": filenames}
     
     try:
         return JSONResponse (content={"result" : main.check_plagiarism(filenames, KGRAM)} , status_code=200)
