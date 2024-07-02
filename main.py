@@ -1,7 +1,7 @@
 import os
 import sys
 import re
-from io import StringIO
+from io import StringIO, BytesIO
 import tokenize
 import keyword
 import hashlib
@@ -62,16 +62,35 @@ def read_doc(file_path):
     document = Document(file_path)
     return "".join(paragraph.text for paragraph in document.paragraphs)
 
-def read_file(file_path, extension=None):
+def read_pdf_from_memory(file: BytesIO):
+    text = ""
+    pdf_document = fitz.open(stream=file.read(), filetype="pdf")
+    for page_num in range(len(pdf_document)):
+        page = pdf_document.load_page(page_num)
+        text += page.get_text()
+    return text
+
+def read_docx_from_memory(file:BytesIO):
+    document = Document(file)
+    text = []
+    for paragraph in document.paragraphs:
+        text.append(paragraph.text)
+    return "\n".join(text)
+
+async def read_file(file, extension=None):
+
     if extension == PDF_EXTENSION:
-        return read_pdf(file_path)
-    elif extension in DOCUMENT_EXTENSION:
-        return read_doc(file_path)
-    with open(file_path, 'r', encoding='utf-8') as file:
-        return file.read()
+        file_content_in_binary = await file.read()
+        content = read_pdf_from_memory(BytesIO(file_content_in_binary))
+
+    elif extension in DOCUMENT_EXTENSIONS:
+        file_content_in_binary = await file.read()
+        content = str(read_docx_from_memory(BytesIO(file_content_in_binary)))
+    
+    return content
     
 def preprocessor(code, extension=None):
-    if extension == PDF_EXTENSION or extension in DOCUMENT_EXTENSION:
+    if extension == PDF_EXTENSION or extension in DOCUMENT_EXTENSIONS:
         code = code.lower()
         return code
     
@@ -194,7 +213,7 @@ def compare_fingerprints(fingerprints1, fingerprints2):
     return len(common_hashes)/max(len(hashes1), len(hashes2)) * PERCENTAGE
 
 
-def check_plagiarism(files=None, k_gram=None):
+async def check_plagiarism(files=None, k_gram=None):
 
     #Checking if all files are in .doc, .docx or .pdf format
     # for file in tqdm(files, desc="Validating document extensions..."):
@@ -202,15 +221,16 @@ def check_plagiarism(files=None, k_gram=None):
     #     if file_extension not in DOCUMENT_EXTENSIONS:
     #         print(file_extension)
     #         raise ValueError('Files must be in  .doc, .docx or .pdf format')
-    
+
     #Create a dictionary of filename and fingerprint
     fingerprint_dict = {}
     for file in tqdm(files, desc="Fingerprinting files..."):
-        file_extension = os.path.splitext(file)[1]
-        normalized_code = preprocessor(read_file(file, file_extension), file_extension)
+        filename = file.filename
+        file_extension = os.path.splitext(filename)[1].lower()
+        normalized_code = preprocessor(str(await read_file(file, file_extension)), file_extension)
         k_gram_list = create_k_gram(normalized_code, k_gram)
         fingerprint = winnow(create_hash_table(k_gram_list), WINDOW_SIZE)
-        fingerprint_dict[file] = fingerprint
+        fingerprint_dict[filename] = fingerprint
     
     #Compare the fingerprints of the files
     similarity_scores = {}
@@ -221,7 +241,7 @@ def check_plagiarism(files=None, k_gram=None):
         for j in range(i + 1, len(file_names)):
             similarity = compare_fingerprints(fingerprint_dict[file_names[i]], fingerprint_dict[file_names[j]])
             similarity_scores[f"{file_names[i]} vs {file_names[j]}"] = similarity
-    
+            
     return similarity_scores
 
 
