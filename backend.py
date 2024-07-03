@@ -1,10 +1,25 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
 from typing import List
 
 import main
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:4006",
+    "https://mol12.netlify.app/"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 KGRAM = 5
 
