@@ -10,7 +10,7 @@ app = FastAPI()
 
 origins = [
     "http://localhost:4006",
-    "https://mol12.netlify.app/"
+    "https://mol12.netlify.app"
 ]
 
 app.add_middleware(
